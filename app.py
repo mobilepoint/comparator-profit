@@ -304,3 +304,74 @@ if not df_2025.empty:
 rec.append("• **Exclude din rapoarte** denumirile duplicate de cadou (deja bifat) și asigură-te că paginile produselor principale sunt cele indexate/promovate.")
 
 st.write("\n".join(rec) if rec else "Nu există recomandări specifice fără mai multe date (ex. cantități, campanii, trafic).")
+# ----------------------
+# Concluzii & Sugestii (tab clar)
+# ----------------------
+st.markdown("---")
+st.subheader("📌 Concluzii & Sugestii")
+
+tab1, tab2, tab3, tab4 = st.tabs([
+    "Produse lipsă în 2025",
+    "Marjă în scădere",
+    "Top winners 2025",
+    "Profit negativ"
+])
+
+# 1) Produse lipsă în 2025
+with tab1:
+    if not df_2025.empty and not df_2024.empty:
+        lost = (
+            df_2024[df_2024["profit"] > 0]
+            .merge(df_2025[["sku"]], on="sku", how="left", indicator=True)
+            .query("_merge == 'left_only'")
+            .sort_values("profit", ascending=False)
+            .head(10)
+        )
+        if lost.empty:
+            st.success("Nu există produse profitabile în 2024 care lipsesc în 2025.")
+        else:
+            st.warning("Top 10 produse profitabile în 2024 care lipsesc în 2025:")
+            st.dataframe(lost[["sku","produs","profit","marja_pct"]], use_container_width=True)
+            st.markdown("👉 Sugestie: readu aceste produse în ofertă, verifică stocul și campaniile.")
+    else:
+        st.info("Ai nevoie de ambele rapoarte 2024 și 2025 pentru această analiză.")
+
+# 2) Marjă în scădere
+with tab2:
+    if not df_2025.empty and not df_2024.empty:
+        both = df_2025.merge(df_2024, on="sku", suffixes=("_25","_24"))
+        both["delta_marja_pp"] = (both["marja_pct_25"] - both["marja_pct_24"]) * 100
+        drops = both.sort_values("delta_marja_pp").head(10)
+        if drops.empty:
+            st.success("Nu s-au găsit produse cu marjă în scădere.")
+        else:
+            st.error("Top 10 produse cu scădere de marjă:")
+            st.dataframe(drops[["sku","produs_25","marja_pct_24","marja_pct_25","delta_marja_pp"]],
+                         use_container_width=True)
+            st.markdown("👉 Sugestie: ajustează prețul sau renegociază costurile pentru aceste produse.")
+    else:
+        st.info("Ai nevoie de ambele rapoarte 2024 și 2025 pentru această analiză.")
+
+# 3) Winners 2025
+with tab3:
+    if not df_2025.empty:
+        winners = df_2025.sort_values("profit", ascending=False).head(10)
+        st.success("Top 10 produse cu cel mai mare profit în 2025:")
+        st.dataframe(winners[["sku","produs","vanzari_nete","profit","marja_pct"]], use_container_width=True)
+        st.markdown("👉 Sugestie: scalează promovarea acestor SKU-uri (bugete Ads, oferte speciale, vizibilitate pe site).")
+    else:
+        st.info("Nu există date pentru 2025.")
+
+# 4) Profit negativ
+with tab4:
+    if not df_2025.empty:
+        negative = df_2025[df_2025["profit"] < 0].sort_values("profit").head(10)
+        if negative.empty:
+            st.success("Nu ai produse cu profit negativ în 2025.")
+        else:
+            st.error("Top 10 produse cu profit negativ în 2025:")
+            st.dataframe(negative[["sku","produs","vanzari_nete","profit","marja_pct"]], use_container_width=True)
+            st.markdown("👉 Sugestie: renunță la aceste produse sau ajustează imediat prețul.")
+    else:
+        st.info("Nu există date pentru 2025.")
+
