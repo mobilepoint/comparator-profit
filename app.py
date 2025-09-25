@@ -201,6 +201,12 @@ c1, c2, c3 = st.columns(3)
 f2023 = c1.file_uploader("Raport 2023 (.csv/.xlsx)", type=["csv","xlsx","xlsm","xltx","xltm"])
 f2024 = c2.file_uploader("Raport 2024 (.csv/.xlsx)", type=["csv","xlsx","xlsm","xltx","xltm"])
 f2025 = c3.file_uploader("Raport 2025 până azi (.csv/.xlsx)", type=["csv","xlsx","xlsm","xltx","xltm"])
+# Uploader stoc în zona principală (opțional, mai vizibil)
+c4 = st.container()
+stock_file_main = c4.file_uploader("🧱 Stoc curent (2 coloane: sku, stoc) – CSV/XLSX", type=["csv","xlsx","xlsm","xltx","xltm"], key="stock_main")
+
+# Folosește fișierul din main dacă există; altfel pe cel din sidebar (stock_file)
+stock_file = stock_file_main or stock_file
 
 if not any([f2023, f2024, f2025]):
     st.info("Încărcă cel puțin un raport.")
