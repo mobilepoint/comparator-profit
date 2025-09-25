@@ -265,23 +265,24 @@ if not df2025.empty and (not df2024.empty or not df2023.empty):
     comp["delta_worst"]   = comp[["delta_vs_2024","delta_vs_2023"]].min(axis=1)
     comp["delta_best"]    = comp[["delta_vs_2024","delta_vs_2023"]].max(axis=1)
 
+    # ——— denumiri prietenoase pentru selector
     metric_choice = st.radio(
         "Metrică pentru grafice",
-        ["Δ vs 2024", "Δ vs 2023", "Worst (cea mai mare scădere)", "Best (cea mai mare creștere)"],
+        ["Diferență vs 2024", "Diferență vs 2023", "Cea mai mare scădere", "Cea mai mare creștere"],
         horizontal=True
     )
     metric_map = {
-        "Δ vs 2024": "delta_vs_2024",
-        "Δ vs 2023": "delta_vs_2023",
-        "Worst (cea mai mare scădere)": "delta_worst",
-        "Best (cea mai mare creștere)": "delta_best",
+        "Diferență vs 2024": "delta_vs_2024",
+        "Diferență vs 2023": "delta_vs_2023",
+        "Cea mai mare scădere": "delta_worst",
+        "Cea mai mare creștere": "delta_best",
     }
     sel_col = metric_map[metric_choice]
 
     worst100 = comp.sort_values("delta_worst").head(100)
     best100  = comp.sort_values("delta_best", ascending=False).head(100)
 
-    t1, t2 = st.tabs(["⬇️ Top 100 scăderi de profit (vs 24/23)", "⬆️ Top 100 creșteri de profit (vs 24/23)"])
+    t1, t2 = st.tabs(["⬇️ Top 100 scăderi de profit (vs 2024/2023)", "⬆️ Top 100 creșteri de profit (vs 2024/2023)"])
 
     with t1:
         left, right = st.columns([2,1])
@@ -293,6 +294,17 @@ if not df2025.empty and (not df2024.empty or not df2023.empty):
             ]].copy()
             show_w[[c for c in show_w.columns if c.startswith("profit") or c.startswith("delta")]] = \
                 show_w[[c for c in show_w.columns if c.startswith("profit") or c.startswith("delta")]].round(2)
+            # ——— antete prietenoase
+            show_w = show_w.rename(columns={
+                "sku": "SKU",
+                "produs": "Produs",
+                "profit_2023": "Profit 2023 (RON)",
+                "profit_2024": "Profit 2024 (RON)",
+                "profit_2025": "Profit 2025 (RON)",
+                "delta_vs_2023": "Diferență 2025 vs 2023 (RON)",
+                "delta_vs_2024": "Diferență 2025 vs 2024 (RON)",
+                "delta_worst": "Cea mai mare scădere (RON)"
+            })
             st.dataframe(show_w, use_container_width=True, height=520)
             download_link_df(show_w, "top_100_scaderi_profit_25_vs_24_23.csv", "⬇️ Descarcă CSV")
         with right:
@@ -308,6 +320,17 @@ if not df2025.empty and (not df2024.empty or not df2023.empty):
             ]].copy()
             show_b[[c for c in show_b.columns if c.startswith("profit") or c.startswith("delta")]] = \
                 show_b[[c for c in show_b.columns if c.startswith("profit") or c.startswith("delta")]].round(2)
+            # ——— antete prietenoase
+            show_b = show_b.rename(columns={
+                "sku": "SKU",
+                "produs": "Produs",
+                "profit_2023": "Profit 2023 (RON)",
+                "profit_2024": "Profit 2024 (RON)",
+                "profit_2025": "Profit 2025 (RON)",
+                "delta_vs_2023": "Diferență 2025 vs 2023 (RON)",
+                "delta_vs_2024": "Diferență 2025 vs 2024 (RON)",
+                "delta_best": "Cea mai mare creștere (RON)"
+            })
             st.dataframe(show_b, use_container_width=True, height=520)
             download_link_df(show_b, "top_100_cresteri_profit_25_vs_24_23.csv", "⬆️ Descarcă CSV")
         with right:
@@ -340,6 +363,13 @@ if not df2024.empty and not df2023.empty:
         left, right = st.columns([2,1])
         with left:
             view_w = worst100_2423[["sku","produs","profit_2023","profit_2024","delta_24_vs_23"]].round(2)
+            view_w = view_w.rename(columns={
+                "sku": "SKU",
+                "produs": "Produs",
+                "profit_2023": "Profit 2023 (RON)",
+                "profit_2024": "Profit 2024 (RON)",
+                "delta_24_vs_23": "Diferență 2024 vs 2023 (RON)"
+            })
             st.dataframe(view_w, use_container_width=True, height=520)
             download_link_df(view_w, "top_100_scaderi_profit_24_vs_23.csv", "⬇️ Descarcă CSV")
         with right:
@@ -349,6 +379,13 @@ if not df2024.empty and not df2023.empty:
         left, right = st.columns([2,1])
         with left:
             view_b = best100_2423[["sku","produs","profit_2023","profit_2024","delta_24_vs_23"]].round(2)
+            view_b = view_b.rename(columns={
+                "sku": "SKU",
+                "produs": "Produs",
+                "profit_2023": "Profit 2023 (RON)",
+                "profit_2024": "Profit 2024 (RON)",
+                "delta_24_vs_23": "Diferență 2024 vs 2023 (RON)"
+            })
             st.dataframe(view_b, use_container_width=True, height=520)
             download_link_df(view_b, "top_100_cresteri_profit_24_vs_23.csv", "⬆️ Descarcă CSV")
         with right:
@@ -442,6 +479,15 @@ if not stock_df.empty and (not df2025.empty or not df2024.empty or not df2023.em
         out = out_of_stock[cols].copy()
         out = out.sort_values(["hist_profit","sales25","p25"], ascending=[False, False, False])
         out[["hist_profit","sales25","p25","stoc"]] = out[["hist_profit","sales25","p25","stoc"]].round(2)
+        # ——— antete prietenoase
+        out = out.rename(columns={
+            "sku": "SKU",
+            "produs": "Produs",
+            "hist_profit": "Profit istoric 2023+2024 (RON)",
+            "sales25": "Vânzări 2025 (RON)",
+            "p25": "Profit 2025 (RON)",
+            "stoc": "Stoc curent"
+        })
 
         st.dataframe(out, use_container_width=True, height=520)
         st.markdown("👉 **Sugestie:** readu urgent în stoc aceste SKU-uri (au istoric bun și tracțiune în 2025).")
@@ -461,11 +507,22 @@ def show_year_tab(container, df, year_label):
             st.info(f"Nu există date pentru {year_label}.")
             return
         view = df.copy()
-        view["marja_%"] = (view["marja_pct"] * 100).round(2)
+        view["Marjă (%)"] = (view["marja_pct"] * 100).round(2)
         view = view.drop(columns=["marja_pct"])
         for c in ("vanzari_nete","cost","profit"):
             view[c] = view[c].round(2)
-        st.dataframe(view[["sku","produs","vanzari_nete","cost","profit","marja_%"]], use_container_width=True, height=460)
+        # ——— antete prietenoase
+        view = view.rename(columns={
+            "sku": "SKU",
+            "produs": "Produs",
+            "vanzari_nete": "Vânzări nete (RON)",
+            "cost": "Cost (RON)",
+            "profit": "Profit (RON)",
+        })
+        st.dataframe(
+            view[["SKU","Produs","Vânzări nete (RON)","Cost (RON)","Profit (RON)","Marjă (%)"]],
+            use_container_width=True, height=460
+        )
         download_link_df(view, f"detaliu_{year_label.replace(' ','_')}.csv", f"⬇️ Descarcă {year_label} CSV")
 
 show_year_tab(tab23, df2023, "2023")
