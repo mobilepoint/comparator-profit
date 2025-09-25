@@ -187,53 +187,125 @@ if not df2024.empty: kpi(df2024, "2024")
 if not df2025.empty: kpi(df2025, "2025 YTD")
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Comparație 2025 YTD vs 2024
+# Comparație 2025 YTD vs 2024 și 2023 (cu opțiune like-for-like pentru ambii ani)
 # ──────────────────────────────────────────────────────────────────────────────
-if not df2025.empty and not df2024.empty:
-    ref = df2024.copy()
-    label = "2024 (ajustat)" if like_for_like else "2024 (an întreg)"
-    if like_for_like:
-        scale = like_for_like_scaler(2024, TODAY)
-        ref[["vanzari_nete","cost","profit"]] = ref[["vanzari_nete","cost","profit"]] * scale
+if not df2025.empty and (not df2024.empty or not df2023.empty):
+
+    def ref_like_for_like(df_year: pd.DataFrame, year: int, enabled: bool) -> pd.DataFrame:
+        ref = df_year.copy()
+        if enabled and not ref.empty:
+            scale = like_for_like_scaler(year, TODAY)
+            ref[["vanzari_nete", "cost", "profit"]] = ref[["vanzari_nete", "cost", "profit"]] * scale
+        return ref
+
+    ref24 = ref_like_for_like(df2024, 2024, like_for_like) if not df2024.empty else pd.DataFrame(columns=df2025.columns)
+    ref23 = ref_like_for_like(df2023, 2023, like_for_like) if not df2023.empty else pd.DataFrame(columns=df2025.columns)
+
+    label24 = "2024 (ajustat)" if like_for_like else "2024 (an întreg)"
+    label23 = "2023 (ajustat)" if like_for_like else "2023 (an întreg)"
 
     st.markdown("---")
-    st.subheader(f"Comparație {label} vs 2025 YTD")
+    st.subheader(f"Comparație {label24} & {label23} vs 2025 YTD")
 
+    base = df2025[["sku", "produs", "profit", "marja_pct"]].rename(
+        columns={"profit": "profit_2025", "marja_pct": "marja_2025"}
+    )
     comp = (
-        df2025[["sku","produs","profit","marja_pct"]].rename(columns={"profit":"profit_2025","marja_pct":"marja_2025"})
-        .merge(ref[["sku","profit","marja_pct"]].rename(columns={"profit":"profit_2024","marja_pct":"marja_2024"}), on="sku", how="outer")
-        .fillna({"profit_2025":0.0,"profit_2024":0.0})
+        base.merge(
+            ref24[["sku","profit","marja_pct"]].rename(columns={"profit":"profit_2024","marja_pct":"marja_2024"}),
+            on="sku", how="outer"
+        )
+        .merge(
+            ref23[["sku","profit","marja_pct"]].rename(columns={"profit":"profit_2023","marja_pct":"marja_2023"}),
+            on="sku", how="outer"
+        )
     )
 
-    # completează denumiri pentru SKU care apar doar în 2024
-    names24 = ref[["sku","produs"]].drop_duplicates()
-    comp = comp.merge(names24, on="sku", how="left", suffixes=("","_y"))
+    # completează denumiri lipsă
+    names24 = ref24[["sku","produs"]].drop_duplicates()
+    names23 = ref23[["sku","produs"]].drop_duplicates()
+    comp = comp.merge(names24, on="sku", how="left", suffixes=("", "_y"))
     comp["produs"] = comp["produs"].fillna(comp.pop("produs_y"))
+    comp = comp.merge(names23, on="sku", how="left", suffixes=("", "_z"))
+    comp["produs"] = comp["produs"].fillna(comp.pop("produs_z"))
 
-    comp["delta_profit"] = comp["profit_2025"] - comp["profit_2024"]
-    worst = comp.sort_values("delta_profit").head(25)
+    # NaN → 0 pentru profit
+    for col in ["profit_2025","profit_2024","profit_2023"]:
+        if col not in comp: comp[col] = 0.0
+    comp[["profit_2025","profit_2024","profit_2023"]] = comp[["profit_2025","profit_2024","profit_2023"]].fillna(0.0)
 
-    left, right = st.columns([2, 1])
-    with left:
-        st.markdown("**Top 25 scăderi de profit (SKU)** – 2025 YTD vs " + label)
-        show = worst[["sku","produs","profit_2024","profit_2025","delta_profit"]].copy()
-        show[["profit_2024","profit_2025","delta_profit"]] = show[["profit_2024","profit_2025","delta_profit"]].round(2)
-        st.dataframe(show, use_container_width=True, height=480)
-        download_link_df(show, "top_scaderi_profit.csv", "⬇️ Descarcă CSV")
-    with right:
-        st.bar_chart(worst.set_index("sku")["delta_profit"])
+    # delte
+    comp["delta_vs_2024"] = comp["profit_2025"] - comp["profit_2024"]
+    comp["delta_vs_2023"] = comp["profit_2025"] - comp["profit_2023"]
+    comp["delta_worst"]   = comp[["delta_vs_2024","delta_vs_2023"]].min(axis=1)  # cea mai mare scădere
+    comp["delta_best"]    = comp[["delta_vs_2024","delta_vs_2023"]].max(axis=1)  # cea mai mare creștere
 
+    # Selector metrica pentru grafice
+    metric_choice = st.radio(
+        "Metrică pentru grafice",
+        ["Δ vs 2024", "Δ vs 2023", "Worst (cea mai mare scădere)", "Best (cea mai mare creștere)"],
+        horizontal=True
+    )
+    metric_map = {
+        "Δ vs 2024": "delta_vs_2024",
+        "Δ vs 2023": "delta_vs_2023",
+        "Worst (cea mai mare scădere)": "delta_worst",
+        "Best (cea mai mare creștere)": "delta_best",
+    }
+    sel_col = metric_map[metric_choice]
+
+    # TOP 100 scăderi (ordonăm crescător după delta_worst)
+    worst100 = comp.sort_values("delta_worst").head(100)
+
+    # TOP 100 creșteri (ordonăm descrescător după delta_best)
+    best100  = comp.sort_values("delta_best", ascending=False).head(100)
+
+    # Afișare tabele + grafice
+    t1, t2 = st.tabs(["⬇️ Top 100 scăderi de profit", "⬆️ Top 100 creșteri de profit"])
+
+    with t1:
+        left, right = st.columns([2,1])
+        with left:
+            st.markdown(f"**Top 100 scăderi** – 2025 YTD vs {label24}/{label23}")
+            show_w = worst100[[
+                "sku","produs",
+                "profit_2023","profit_2024","profit_2025",
+                "delta_vs_2023","delta_vs_2024","delta_worst"
+            ]].copy()
+            show_w[[c for c in show_w.columns if c.startswith("profit") or c.startswith("delta")]] = \
+                show_w[[c for c in show_w.columns if c.startswith("profit") or c.startswith("delta")]].round(2)
+            st.dataframe(show_w, use_container_width=True, height=520)
+            download_link_df(show_w, "top_100_scaderi_profit.csv", "⬇️ Descarcă CSV")
+        with right:
+            st.bar_chart(worst100.set_index("sku")[sel_col])
+
+    with t2:
+        left, right = st.columns([2,1])
+        with left:
+            st.markdown(f"**Top 100 creșteri** – 2025 YTD vs {label24}/{label23}")
+            show_b = best100[[
+                "sku","produs",
+                "profit_2023","profit_2024","profit_2025",
+                "delta_vs_2023","delta_vs_2024","delta_best"
+            ]].copy()
+            show_b[[c for c in show_b.columns if c.startswith("profit") or c.startswith("delta")]] = \
+                show_b[[c for c in show_b.columns if c.startswith("profit") or c.startswith("delta")]].round(2)
+            st.dataframe(show_b, use_container_width=True, height=520)
+            download_link_df(show_b, "top_100_cresteri_profit.csv", "⬆️ Descarcă CSV")
+        with right:
+            st.bar_chart(best100.set_index("sku")[sel_col])
+
+    # Interpretare rapidă
     st.markdown("### Interpretare rapidă")
     bullets = []
-    if comp["profit_2025"].sum() < comp["profit_2024"].sum():
-        bullets.append("• **Profit total în scădere** – concentrează-te pe SKU-urile din tabelul de mai sus.")
-    lost = comp[(comp["profit_2024"]>0) & (comp["profit_2025"]==0)].sort_values("profit_2024", ascending=False).head(10)
-    if not lost.empty:
-        bullets.append("• **SKU profitabile în 2024 dar lipsă în 2025** – verifică stocul, listarea și campaniile.")
-    new_bad = comp[(comp["profit_2024"]==0) & (comp["profit_2025"]<0)].head(10)
-    if not new_bad.empty:
-        bullets.append("• **SKU noi cu profit negativ în 2025** – ajustează costurile/prețurile sau oprește promoțiile agresive.")
-    st.write("\n".join(bullets) if bullets else "• Nu se disting scăderi structurale majore din aceste fișiere.")
+    tot25, tot24, tot23 = comp["profit_2025"].sum(), comp["profit_2024"].sum(), comp["profit_2023"].sum()
+    if tot25 < tot24: bullets.append("• **Profit 2025 < 2024** – vezi tabul „scăderi”.")
+    if tot25 < tot23: bullets.append("• **Profit 2025 < 2023** – vezi coloana Δ vs 2023.")
+    lost24 = comp[(comp["profit_2024"] > 0) & (comp["profit_2025"] == 0)].nlargest(10, "profit_2024")
+    lost23 = comp[(comp["profit_2023"] > 0) & (comp["profit_2025"] == 0)].nlargest(10, "profit_2023")
+    if not lost24.empty: bullets.append("• **SKU profitabile în 2024 dar lipsă în 2025** – readu pe stoc/listare.")
+    if not lost23.empty: bullets.append("• **SKU profitabile în 2023 dar lipsă în 2025** – potențiale reintroduceri.")
+    st.write("\n".join(bullets) if bullets else "• 2025 YTD este comparabil cu 2023/2024.")
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Detaliu & Concluzii
